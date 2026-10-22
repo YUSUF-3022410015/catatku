@@ -1,13 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Event, dbGetAll, dbPut, dbDelete } from './db';
 
-type ViewMode = 'calendar' | 'agenda' | 'history';
-
 export default function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
