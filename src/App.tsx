@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Event, dbGetAll, dbPut, dbDelete } from './db';
+import { exportData, importData } from './exportImport';
 
 export default function App() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -19,6 +20,33 @@ export default function App() {
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderTime, setReminderTime] = useState('08:00');
   const [windowDays, setWindowDays] = useState(7);
+  const [info, setInfo] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const dismissInfo = () => setInfo(null);
+
+  const handleExport = async () => {
+    try {
+      await exportData();
+      setInfo({ msg: 'Data diekspor.', kind: 'ok' });
+    } catch (e) {
+      setInfo({ msg: 'Gagal mengekspor: ' + (e as Error).message, kind: 'err' });
+    }
+  };
+
+  const handleImport = async (file: File) => {
+    setImporting(true);
+    try {
+      const result = await importData(file);
+      await dbGetAll();
+      setInfo({ msg: `Diimpor: ${result.imported} kegiatan, ${result.skipped} dilewati.`, kind: 'ok' });
+    } catch (e) {
+      setInfo({ msg: 'Gagal mengimpor: ' + (e as Error).message, kind: 'err' });
+    } finally {
+      setImporting(false);
+      (document.getElementById('importFile') as HTMLInputElement).value = '';
+    }
+  };
 
   useEffect(() => {
     loadEvents();
@@ -151,6 +179,26 @@ export default function App() {
             <option value="dark" className="text-black">Tema: Dark</option>
           </select>
           <button
+            onClick={handleExport}
+            className="px-2 py-1 text-xs border rounded bg-transparent border-gray-300 dark:border-gray-700 hover:opacity-80"
+          >
+            Ekspor
+          </button>
+          <button
+            onClick={() => document.getElementById('importFile')?.click()}
+            disabled={importing}
+            className="px-2 py-1 text-xs border rounded bg-transparent border-gray-300 dark:border-gray-700 hover:opacity-80"
+          >
+            Impor
+          </button>
+          <input
+            id="importFile"
+            type="file"
+            accept=".json"
+            hidden
+            onChange={(e) => { if (e.target.files?.length) handleImport(e.target.files[0]); }}
+          />
+          <button
             onClick={() => handleOpenModal()}
             className="px-3 py-1.5 bg-accent-light dark:bg-accent-dark text-white dark:text-gray-900 text-sm font-medium rounded-lg shadow hover:opacity-90 transition"
           >
@@ -158,6 +206,13 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {info && (
+        <div className={`p-3 rounded-lg text-xs border ${info.kind === 'ok' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'}`} role="alert">
+          {info.msg}
+          <button onClick={dismissInfo} className="ml-2 underline font-medium">Tutup</button>
+        </div>
+      )}
 
       {/* Main Layout */}
       <main className="max-w-4xl mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6">
