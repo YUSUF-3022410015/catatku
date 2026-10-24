@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Event, dbGetAll, dbPut, dbDelete } from './db';
 import { exportData, importData } from './exportImport';
+import { setupNotifications } from './notificationSetup';
 
 export default function App() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -198,6 +199,15 @@ export default function App() {
             hidden
             onChange={(e) => { if (e.target.files?.length) handleImport(e.target.files[0]); }}
           />
+          <button
+            onClick={async () => {
+              const r = await setupNotifications();
+              setInfo({ msg: r.msg, kind: r.ok ? 'ok' : 'err' });
+            }}
+            className="px-2 py-1 text-xs border rounded bg-transparent border-gray-300 dark:border-gray-700 hover:opacity-80"
+          >
+            Notifikasi
+          </button>
           <button
             onClick={() => handleOpenModal()}
             className="px-3 py-1.5 bg-accent-light dark:bg-accent-dark text-white dark:text-gray-900 text-sm font-medium rounded-lg shadow hover:opacity-90 transition"
