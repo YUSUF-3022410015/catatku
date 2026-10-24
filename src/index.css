@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --accent: #6258D9;
+    --surface: #ffffff;
+    --text: #242238;
+  }
+  [data-theme='dark'] {
+    --accent: #A69BFF;
+    --surface: #1a1a2e;
+    --text: #F4F2FF;
+  }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: var(--text);
+    background: var(--surface);
+    transition: background 0.2s, color 0.2s;
+  }
+  input, button, select, textarea {
+    font-family: inherit;
+  }
+}
+
+.accent { color: var(--accent); }
+.bg-accent { background-color: var(--accent); }
+.border-accent { border-color: var(--accent); }
+
+.sheet {
+  background: var(--surface);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 16px;
+}
