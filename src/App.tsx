@@ -38,7 +38,7 @@ export default function App() {
     setImporting(true);
     try {
       const result = await importData(file);
-      await dbGetAll();
+      await loadEvents();
       setInfo({ msg: `Diimpor: ${result.imported} kegiatan, ${result.skipped} dilewati.`, kind: 'ok' });
     } catch (e) {
       setInfo({ msg: 'Gagal mengimpor: ' + (e as Error).message, kind: 'err' });
