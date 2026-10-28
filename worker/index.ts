@@ -67,6 +67,27 @@ export default {
       return new Response(JSON.stringify({ sent: results.length, results }), { headers: JSON_HEADERS });
     }
 
+    // POST /api/cleanup — hapus semua data saya (FR-23)
+    if (url.pathname === '/api/cleanup' && request.method === 'POST') {
+      const body = await request.json() as { installation_id: string };
+      if (!body.installation_id) {
+        return new Response(JSON.stringify({ error: 'installation_id wajib' }), { status: 400, headers: JSON_HEADERS });
+      }
+
+      const now = new Date().toISOString();
+
+      // Hapus semua kegiatan (tombstone)
+      await env.DB.prepare('UPDATE events SET deleted_at = ? WHERE installation_id = ?').bind(now, body.installation_id).run();
+      // Hapus push subscription
+      await env.DB.prepare('DELETE FROM push_subscriptions WHERE installation_id = ?').bind(body.installation_id).run();
+      // Hapus sync queue
+      await env.DB.prepare('DELETE FROM sync_queue WHERE installation_id = ?').bind(body.installation_id).run();
+      // Update last_seen_at
+      await env.DB.prepare('UPDATE installations SET last_seen_at = ? WHERE id = ?').bind(now, body.installation_id).run();
+
+      return new Response(JSON.stringify({ ok: true, msg: 'Data dihapus.' }), { headers: JSON_HEADERS });
+    }
+
     // POST /api/sync — sinkronisasi antrean offline (FR-26, FR-27)
     if (url.pathname === '/api/sync' && request.method === 'POST') {
       const body = await request.json() as { installation_id: string; operations: Array<{ op_id: string; op_type: 'upsert' | 'delete'; payload?: any }> };

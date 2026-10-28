@@ -1,0 +1,1 @@
+UPDATE events SET last_reminded_local_date = '2026-10-28', next_reminder_at = '2026-10-29T05:03:00.000Z' WHERE id = 'test-event-001';

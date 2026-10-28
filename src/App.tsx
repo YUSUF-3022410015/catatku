@@ -3,6 +3,7 @@ import { Event, dbGetAll, dbPut, dbDelete } from './db';
 import { exportData, importData } from './exportImport';
 import { setupNotifications, getInstallationId } from './notificationSetup';
 import { syncToServer, setupAutoSync, isOnline, getSyncStatus } from './sync';
+import { cleanupAllLocalData } from './cleanup';
 
 
 
@@ -183,6 +184,39 @@ export default function App() {
     }
   };
 
+  const handleCleanup = async () => {
+    if (!installationId) {
+      setInfo({ msg: 'Tidak ada identitas instalasi. Coba refresh halaman.', kind: 'err' });
+      return;
+    }
+    if (!confirm('Hapus SEMUA data saya? Ini akan menghapus semua kegiatan dan pengaturan, lokal dan di server. Tidak dapat dikembalikan!')) {
+      return;
+    }
+    
+    setInfo({ msg: 'Menghapus data...', kind: 'ok' });
+    
+    try {
+      // Hapus data server
+      const resServer = await fetch('/api/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ installation_id: installationId }),
+      });
+      
+      if (!resServer.ok) {
+        console.warn('Gagal hapus server:', await resServer.text());
+      }
+      
+      // Hapus data lokal
+      await cleanupAllLocalData();
+      
+      // Reload page untuk reset state
+      window.location.reload();
+    } catch (e) {
+      setInfo({ msg: 'Gagal hapus data: ' + (e as Error).message, kind: 'err' });
+    }
+  };
+
   // Calendar logic
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -237,6 +271,13 @@ export default function App() {
             hidden
             onChange={(e) => { if (e.target.files?.length) handleImport(e.target.files[0]); }}
           />
+          <button
+            onClick={handleCleanup}
+            className="px-2 py-1 text-xs border border-red-500 text-red-600 dark:border-red-900 dark:text-red-400 rounded bg-transparent hover:opacity-80"
+            title="Hapus semua data saya"
+          >
+            Hapus Data
+          </button>
           <button
             onClick={async () => {
               const r = await setupNotifications();
