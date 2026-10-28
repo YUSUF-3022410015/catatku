@@ -67,6 +67,101 @@ export default {
       return new Response(JSON.stringify({ sent: results.length, results }), { headers: JSON_HEADERS });
     }
 
+    // POST /api/sync — sinkronisasi antrean offline (FR-26, FR-27)
+    if (url.pathname === '/api/sync' && request.method === 'POST') {
+      const body = await request.json() as { installation_id: string; operations: Array<{ op_id: string; op_type: 'upsert' | 'delete'; payload?: any }> };
+      if (!body.installation_id || !Array.isArray(body.operations) || body.operations.length === 0) {
+        return new Response(JSON.stringify({ error: 'installation_id dan operations wajib' }), { status: 400, headers: JSON_HEADERS });
+      }
+
+      const now = new Date().toISOString();
+      const results: { op_id: string; status: string; error?: string }[] = [];
+
+      // Proses tiap operasi secara idempoten
+      for (const op of body.operations) {
+        if (!op.op_id) {
+          results.push({ op_id: '', status: 'failed', error: 'op_id wajib' });
+          continue;
+        }
+
+        try {
+          const existing = await env.DB.prepare(
+            'SELECT id FROM sync_queue WHERE op_id = ?'
+          ).bind(op.op_id).first<string>();
+
+          if (existing) {
+            // Sudah diproses: abaikan (idempotensi)
+            results.push({ op_id: op.op_id, status: 'skipped' });
+            continue;
+          }
+
+          if (op.op_type === 'upsert') {
+            const event = op.payload;
+            if (!event || !event.id || !event.title) {
+              results.push({ op_id: op.op_id, status: 'failed', error: 'payload tidak valid' });
+              continue;
+            }
+            const ev = event as {
+              id: string; title: string; description: string;
+              start_date: string; start_time?: string; end_date?: string; end_time?: string;
+              is_all_day: boolean; location?: string; category?: string;
+              user_status: 'active' | 'completed' | 'cancelled'; source_type: 'manual' | 'voice' | 'poster';
+              date_label?: 'acara' | 'pendaftaran' | 'tenggat' | 'lainnya';
+              daily_reminder_enabled: boolean; daily_reminder_time?: string; daily_window_days: number;
+              pre_start_offset_minutes?: number; revision: number;
+              created_at: string; updated_at: string;
+            };
+            // Upsert event
+            await env.DB.prepare(`
+              INSERT INTO events (
+                id, installation_id, title, description, start_date, start_time, end_date, end_time,
+                is_all_day, location, category, user_status, source_type, date_label,
+                daily_reminder_enabled, daily_reminder_time, daily_window_days, pre_start_offset_minutes,
+                revision, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET
+                title=excluded.title, description=excluded.description, start_date=excluded.start_date,
+                start_time=excluded.start_time, end_date=excluded.end_date, end_time=excluded.end_time,
+                is_all_day=excluded.is_all_day, location=excluded.location, category=excluded.category,
+                user_status=excluded.user_status, source_type=excluded.source_type, date_label=excluded.date_label,
+                daily_reminder_enabled=excluded.daily_reminder_enabled, daily_reminder_time=excluded.daily_reminder_time,
+                daily_window_days=excluded.daily_window_days, pre_start_offset_minutes=excluded.pre_start_offset_minutes,
+                revision=excluded.revision, updated_at=excluded.updated_at
+            `).bind(
+              ev.id, body.installation_id, ev.title, ev.description || '', ev.start_date,
+              ev.start_time, ev.end_date, ev.end_time, ev.is_all_day ? 1 : 0,
+              ev.location, ev.category, ev.user_status, ev.source_type, ev.date_label,
+              ev.daily_reminder_enabled ? 1 : 0, ev.daily_reminder_time, ev.daily_window_days,
+              ev.pre_start_offset_minutes, ev.revision, ev.created_at, ev.updated_at
+            ).run();
+            results.push({ op_id: op.op_id, status: 'success' });
+          } else if (op.op_type === 'delete') {
+            // Tombstone (jangan delete permanen)
+            await env.DB.prepare(
+              'UPDATE events SET deleted_at = ? WHERE id = ? AND installation_id = ?'
+            ).bind(now, op.payload.id, body.installation_id).run();
+            results.push({ op_id: op.op_id, status: 'success' });
+          }
+
+          // Catat operasi ke sync_queue
+          await env.DB.prepare(`
+            INSERT INTO sync_queue (id, op_id, installation_id, event_id, op_type, payload, created_at, synced_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(crypto.randomUUID(), op.op_id, body.installation_id, op.payload?.id, op.op_type, JSON.stringify(op.payload || null), now, now).run();
+
+        } catch (err) {
+          // Catat error tapi lanjut operasi lain
+          await env.DB.prepare(`
+            INSERT INTO sync_queue (id, op_id, installation_id, op_type, payload, created_at, attempts, last_error)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+          `).bind(crypto.randomUUID(), op.op_id, body.installation_id, op.op_type, JSON.stringify(op.payload || null), now, String(err)).run();
+          results.push({ op_id: op.op_id, status: 'failed', error: String(err) });
+        }
+      }
+
+      return new Response(JSON.stringify({ results, total: results.length, success: results.filter(r => r.status === 'success').length }), { headers: JSON_HEADERS });
+    }
+
     if (env.ASSETS) return env.ASSETS.fetch(request);
     return new Response('CatatKu Worker', { status: 200 });
   },

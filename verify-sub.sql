@@ -1,0 +1,1 @@
+SELECT * FROM push_subscriptions WHERE installation_id='test-install-001';

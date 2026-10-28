@@ -17,5 +17,5 @@ export default defineConfig({
       },
     }),
   ],
-  build: { outDir: 'dist', sourcemap: false },
+  build: { outDir: 'build', sourcemap: false },
 });

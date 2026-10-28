@@ -1,6 +1,7 @@
 name = "catatku"
 main = "worker/index.ts"
 compatibility_date = "2024-04-01"
+account_id = "460f901365482cd0c6947c42036a07ad"
 
 [assets]
 directory = "./dist"
@@ -9,8 +10,9 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "catatku-db"
-database_id = "local-d1-placeholder"
+database_id = "08c480bc-91cd-4afe-8fae-1b86fa46236c"
 
 # Pengingat Cron Triggers (Setiap 5 menit untuk mengecek jatuh tempo)
 [triggers]
 crons = ["*/5 * * * *"]
+

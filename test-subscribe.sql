@@ -1,0 +1,2 @@
+INSERT OR REPLACE INTO push_subscriptions (id, installation_id, subscription_endpoint, p256dh, auth, created_at, updated_at)
+VALUES ('test-sub-001', 'test-install-001', 'https://fcm.googleapis.com/fcm/send/test-sub-endpoint-001', 'BM7XqRgFkN5J6X3p1QYd2V1K3m8R5T7Y9U2I4O6P8Q0A2B4C6D8E', 'fake-auth-token-1234567890123456789012', '2026-10-28T04:00:00.000Z', '2026-10-28T04:00:00.000Z');

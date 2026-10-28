@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Event, dbGetAll, dbPut, dbDelete } from './db';
 import { exportData, importData } from './exportImport';
-import { setupNotifications } from './notificationSetup';
+import { setupNotifications, getInstallationId } from './notificationSetup';
+import { syncToServer, setupAutoSync, isOnline, getSyncStatus } from './sync';
+
+
 
 export default function App() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -23,8 +26,43 @@ export default function App() {
   const [windowDays, setWindowDays] = useState(7);
   const [info, setInfo] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null);
   const [importing, setImporting] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{ status: 'synced' | 'pending' | 'failed'; pending: number } | null>(null);
+  const [installationId, setInstallationId] = useState<string | null>(null);
 
   const dismissInfo = () => setInfo(null);
+
+  // Setup auto-sync saat component mount
+  useEffect(() => {
+    (async () => {
+      const id = await getInstallationId();
+      setInstallationId(id);
+      setupAutoSync(id);
+      const status = await getSyncStatus();
+      setSyncStatus(status);
+      
+      // Setup Voice Note
+    })();
+  }, []);
+
+
+  // Trigger sync otomatis saat online kembali
+  useEffect(() => {
+    const handleOnline = async () => {
+      if (installationId) {
+        const result = await syncToServer(installationId);
+        const status = await getSyncStatus();
+        setSyncStatus(status);
+        if (result.total > 0) {
+          setInfo({
+            msg: `Sinkron: ${result.success}/${result.total} berhasil`,
+            kind: result.failed > 0 ? 'err' : 'ok',
+          });
+        }
+      }
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [installationId]);
 
   const handleExport = async () => {
     try {
@@ -226,6 +264,36 @@ export default function App() {
 
       {/* Main Layout */}
       <main className="max-w-4xl mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Status Sinkronisasi */}
+        {syncStatus && syncStatus.pending > 0 && (
+          <div className="md:col-span-3 text-xs bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 p-2 rounded-lg flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
+              <span>Menunggu sinkron ({syncStatus.pending} operasi)</span>
+            </div>
+            <button
+              onClick={async () => {
+                if (installationId) {
+                  const result = await syncToServer(installationId);
+                  const status = await getSyncStatus();
+                  setSyncStatus(status);
+                  setInfo({
+                    msg: `Sinkron: ${result.success}/${result.total} berhasil`,
+                    kind: result.failed > 0 ? 'err' : 'ok',
+                  });
+                }
+              }}
+              className="text-yellow-700 dark:text-yellow-400 hover:underline font-medium"
+            >
+              Coba sekarang
+            </button>
+          </div>
+        )}
+        {syncStatus && !isOnline() && (
+          <div className="md:col-span-3 text-xs bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/50 p-2 rounded-lg">
+            Offline — perubahan akan tersinkron saat online kembali
+          </div>
+        )}
         {/* Kalender Section (2 Cols) */}
         <section className="md:col-span-2 space-y-4">
           <div className="flex justify-between items-center">

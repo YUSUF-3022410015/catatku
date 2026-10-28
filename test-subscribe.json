@@ -1,0 +1,1 @@
+{"installation_id": "test-install-001", "endpoint": "https://fcm.googleapis.com/fcm/send/fake-subscription-endpoint", "p256dh": "BM7XqRgFkN5J6X3p1QYd2V1K3m8R5T7Y9U2I4O6P8Q0A2B4C6D8E", "auth": "fake-auth-token-1234567890123456789012"}
