@@ -88,6 +88,43 @@ export default {
       return new Response(JSON.stringify({ ok: true, msg: 'Data dihapus.' }), { headers: JSON_HEADERS });
     }
 
+    // POST /api/ai-poster — upload poster untuk OCR/AI ekstraksi (FR-08, FR-09, FR-10)
+    if (url.pathname === '/api/ai-poster' && request.method === 'POST') {
+      const contentType = request.headers.get('content-type') || '';
+      if (!contentType.includes('multipart/form-data')) {
+        return new Response(JSON.stringify({ error: 'Hanya menerima multipart/form-data' }), { status: 400, headers: JSON_HEADERS });
+      }
+
+      const formData = await request.formData();
+      const file = formData.get('file') as File | null;
+      const installationId = formData.get('installation_id') as string | null;
+
+      if (!file || !installationId) {
+        return new Response(JSON.stringify({ error: 'file dan installation_id wajib' }), { status: 400, headers: JSON_HEADERS });
+      }
+
+      // Validasi tipe dan ukuran file
+      if (!file.type.startsWith('image/')) {
+        return new Response(JSON.stringify({ error: 'File harus berupa gambar' }), { status: 400, headers: JSON_HEADERS });
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        return new Response(JSON.stringify({ error: 'Ukuran file terlalu besar (max 5 MB)' }), { status: 400, headers: JSON_HEADERS });
+      }
+
+      // Placeholder: Ganti dengan Gemini API atau OCR lokal saat ready
+      // Untuk spike ini, return dummy data untuk test
+      const dummyResult = {
+        title: 'Contoh Acara Uji',
+        location: 'Kampus UISI',
+        candidates: [
+          { date: new Date().toISOString().slice(0, 10), time: '09:00', label: 'acara', confidence: 0.95 },
+          { date: new Date().toISOString().slice(0, 10), time: '08:00', label: 'pendaftaran', confidence: 0.85 },
+        ],
+      };
+
+      return new Response(JSON.stringify(dummyResult), { headers: JSON_HEADERS });
+    }
+
     // POST /api/sync — sinkronisasi antrean offline (FR-26, FR-27)
     if (url.pathname === '/api/sync' && request.method === 'POST') {
       const body = await request.json() as { installation_id: string; operations: Array<{ op_id: string; op_type: 'upsert' | 'delete'; payload?: any }> };

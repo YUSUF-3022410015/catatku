@@ -4,6 +4,7 @@ import { exportData, importData } from './exportImport';
 import { setupNotifications, getInstallationId } from './notificationSetup';
 import { syncToServer, setupAutoSync, isOnline, getSyncStatus } from './sync';
 import { cleanupAllLocalData } from './cleanup';
+import { uploadPoster } from './aiPoster';
 
 
 
@@ -29,6 +30,8 @@ export default function App() {
   const [importing, setImporting] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ status: 'synced' | 'pending' | 'failed'; pending: number } | null>(null);
   const [installationId, setInstallationId] = useState<string | null>(null);
+  const [posterLoading, setPosterLoading] = useState(false);
+  const [posterResult, setPosterResult] = useState<{ title?: string; location?: string; candidates: { date: string; time?: string; label: string; confidence: number }[] } | null>(null);
 
   const dismissInfo = () => setInfo(null);
 
@@ -215,6 +218,46 @@ export default function App() {
     } catch (e) {
       setInfo({ msg: 'Gagal hapus data: ' + (e as Error).message, kind: 'err' });
     }
+  };
+
+  const handlePosterUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!installationId) {
+      setInfo({ msg: 'Identitas instalasi tidak tersedia. Coba refresh.', kind: 'err' });
+      return;
+    }
+
+    setPosterLoading(true);
+    const { ok, data, error } = await uploadPoster(file, installationId);
+    setPosterLoading(false);
+
+    if (!ok) {
+      setInfo({ msg: 'Gagal upload poster: ' + (error || 'Unknown error'), kind: 'err' });
+      setPosterResult(null);
+      return;
+    }
+
+    setPosterResult(data || null);
+    setInfo({ msg: 'OCR selesai! Periksa hasil dan terapkan.', kind: 'ok' });
+  };
+
+  const applyPosterResult = () => {
+    if (!posterResult) return;
+
+    if (posterResult.title) setTitle(posterResult.title);
+    if (posterResult.location) setLocation(posterResult.location);
+
+    // Gunakan kandidat tanggal pertama sebagai start_date
+    if (posterResult.candidates.length > 0) {
+      const first = posterResult.candidates[0];
+      if (first.date) setStartDate(first.date);
+      if (first.time) setStartTime(first.time);
+    }
+
+    setInfo({ msg: 'Hasil OCR diterapkan!', kind: 'ok' });
+    setPosterResult(null);
   };
 
   // Calendar logic
@@ -533,6 +576,51 @@ export default function App() {
                   className="w-full p-2 border rounded-lg bg-transparent border-gray-300 dark:border-gray-700"
                   placeholder="Opsional"
                 />
+              </div>
+
+              {/* Upload Poster (FR-08, FR-09, FR-10) */}
+              <div className="space-y-2">
+                <label className="block text-xs opacity-70">Unggah Poster/Foto (AI OCR)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="block w-full text-xs file:mr-2 file:py-1.5 file:px-2 file:text-xs file:border-0 file:bg-accent-light file:text-white dark:file:bg-accent-dark rounded-lg hover:opacity-90"
+                    onChange={handlePosterUpload}
+                    disabled={!!installationId === false}
+                    title={installationId ? "Upload poster untuk AI ekstraksi" : "Login diperlukan (untuk testing)"}
+                  />
+                  {posterLoading && <span className="text-xs text-yellow-600 animate-pulse">Memproses...</span>}
+                </div>
+                {posterResult && (
+                  <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-xs space-y-1">
+                    <p className="font-medium text-yellow-800 dark:text-yellow-400">Hasil OCR:</p>
+                    <div className="grid grid-cols-2 gap-1">
+                      {posterResult.title && <div><span className="opacity-60">Judul:</span> {posterResult.title}</div>}
+                      {posterResult.location && <div><span className="opacity-60">Lokasi:</span> {posterResult.location}</div>}
+                    </div>
+                    {posterResult.candidates.length > 0 && (
+                      <div className="pt-1">
+                        <p className="opacity-60">Kandidat Tanggal:</p>
+                        <ul className="pl-2 space-y-0.5">
+                          {posterResult.candidates.map((c, i) => (
+                            <li key={i} className="flex justify-between">
+                              <span>{c.date} {c.time || ''} ({c.label})</span>
+                              <span className="opacity-60">{(c.confidence * 100).toFixed(0)}%</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={applyPosterResult}
+                      className="mt-1 text-yellow-700 dark:text-yellow-400 hover:underline"
+                    >
+                      Terapkan hasil ini
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Pengingat Harian (Sesuai FR-11 & FR-12) */}
